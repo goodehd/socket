@@ -1,6 +1,10 @@
 #pragma once
 #include <unordered_map>
+#include <winsock2.h>
+#include <mswsock.h>
+#include <windows.h>
 
+#pragma comment(lib, "ws2_32.lib")
 
 class IOCPserver{
 
@@ -13,7 +17,6 @@ private:
 
 public:
 	bool SocketInit();
-	void SocketBind();
-	void SocketListen();
-
+	bool SocketBind(int port);
+	bool SocketListen(int backLog);
 };

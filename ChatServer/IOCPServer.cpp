@@ -2,7 +2,7 @@
 #include <iostream>
 #include <WinSock2.h>
 
-IOCPserver::IOCPserver() : m_listenSocket(NULL) {}
+IOCPserver::IOCPserver() : m_listenSocket(INVALID_SOCKET) {}
 IOCPserver::~IOCPserver() {}
 
 bool IOCPserver::SocketInit()
@@ -23,12 +23,24 @@ bool IOCPserver::SocketInit()
 	return true;
 }
 
-void IOCPserver::SocketBind()
+bool IOCPserver::SocketBind(int port)
 {
+	SOCKADDR_IN serverAddr;
+	serverAddr.sin_family = AF_INET;
+	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serverAddr.sin_port = htons(port);
 
+	int result = bind(m_listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
+	if (result == SOCKET_ERROR) {
+		closesocket(m_listenSocket);
+		std::cout << "Fail Socket Bind" << std::endl;
+		return false;
+	}
+
+	return true;
 }
 
-void IOCPserver::SocketListen()
+bool IOCPserver::SocketListen(int backLog)
 {
-
+	return SOCKET_ERROR != listen(m_listenSocket, backLog);
 }
