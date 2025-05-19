@@ -100,7 +100,7 @@ bool Socket::LoadAcceptExFunc()
 		NULL) != SOCKET_ERROR;
 }
 
-bool Socket::AcceptExSocket(Socket clientSocket, OVERLAPPED* overlapped, char* buffer)
+bool Socket::AcceptExSocket(Socket* clientSocket, OVERLAPPED* overlapped, char* buffer)
 {
 	if (!LoadAcceptExFunc()) {
 		std::cout << "Fail LoadAccptEx not load" << std::endl;
@@ -111,7 +111,7 @@ bool Socket::AcceptExSocket(Socket clientSocket, OVERLAPPED* overlapped, char* b
 
 	BOOL result = m_LpfnAcceptEx(
 		m_Socket,
-		clientSocket.GetSocket(),
+		clientSocket->GetSocket(),
 		buffer,
 		0,
 		sizeof(SOCKADDR_IN) + 16,

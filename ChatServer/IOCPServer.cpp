@@ -82,7 +82,7 @@ bool IOCPserver::StartAccept()
 		return false;
 	}
 
-	m_listenSocket.AcceptExSocket(clientcontext->clientSocket, &(clientcontext->overlapped), clientcontext->buffer);
+	m_listenSocket.AcceptExSocket(&(clientcontext->clientSocket), &(clientcontext->overlapped), clientcontext->buffer);
 
 	return false;
 }
