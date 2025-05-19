@@ -73,4 +73,18 @@ bool IOCPserver::BindListenSocketToIOCP()
 	return IocpAdd(m_listenSocket, nullptr);
 }
 
+bool IOCPserver::StartAccept()
+{
+	AcceptContext* clientcontext = new AcceptContext();
+	if (!clientcontext->clientSocket.SocketInit(ProtocolType::TCP)) {
+		std::cout << "Failed to create client socket for AcceptEx" << std::endl;
+		delete clientcontext;
+		return false;
+	}
+
+	m_listenSocket.AcceptExSocket(clientcontext->clientSocket, &(clientcontext->overlapped), clientcontext->buffer);
+
+	return false;
+}
+
 

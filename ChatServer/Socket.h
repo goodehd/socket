@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <mswsock.h>
 #include <windows.h>
+#include <memory>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -36,7 +37,7 @@ class Socket {
 private:
 	SOCKET m_Socket;
 	LPFN_ACCEPTEX m_LpfnAcceptEx;
-	OverlappedContext m_OverlappedStruct;
+	std::unique_ptr<OverlappedContext> m_OverlappedStruct;
 
 public :
 	Socket();
@@ -51,7 +52,7 @@ public:
 	bool SocketInit(ProtocolType type);
 	bool SocketBind(int port);
 	bool SocketListen(int backLog);
-	bool AcceptExSocket(Socket clientSocket, OVERLAPPED* overlapped, char* buffer, DWORD bufferLen);
+	bool AcceptExSocket(Socket* clientSocket, OVERLAPPED* overlapped, char* buffer);
 	bool SetAcceptContext(SOCKET listenSocket);
 	bool ReceiveOverlapped();
 	void CloseSocket();

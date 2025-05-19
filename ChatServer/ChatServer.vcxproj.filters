@@ -29,10 +29,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="IOCPServer.h">
+    <ClInclude Include="Socket.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
-    <ClInclude Include="Socket.h">
+    <ClInclude Include="IOCPServer.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
   </ItemGroup>

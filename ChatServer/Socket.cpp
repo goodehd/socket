@@ -1,7 +1,7 @@
 #include "Socket.h"
 #include <iostream>
 
-Socket::Socket() : m_Socket(INVALID_SOCKET), m_LpfnAcceptEx(nullptr), m_OverlappedStruct() {}
+Socket::Socket() : m_Socket(INVALID_SOCKET), m_LpfnAcceptEx(nullptr), m_OverlappedStruct(nullptr){}
 Socket::~Socket() { 
 	CloseSocket();
 }
@@ -64,11 +64,11 @@ bool Socket::ReceiveOverlapped()
 {
 	int ret = WSARecv(
 		m_Socket,
-		&m_OverlappedStruct.WsaBuf,
+		&m_OverlappedStruct->WsaBuf,
 		1,
 		NULL,
-		&m_OverlappedStruct.LappedFlag,
-		&m_OverlappedStruct.ReadOverlappedStruct,
+		&m_OverlappedStruct->LappedFlag,
+		&m_OverlappedStruct->ReadOverlappedStruct,
 		NULL
 	);
 
@@ -100,7 +100,7 @@ bool Socket::LoadAcceptExFunc()
 		NULL) != SOCKET_ERROR;
 }
 
-bool Socket::AcceptExSocket(Socket clientSocket, OVERLAPPED* overlapped, char* buffer, DWORD bufferLen)
+bool Socket::AcceptExSocket(Socket clientSocket, OVERLAPPED* overlapped, char* buffer)
 {
 	if (!LoadAcceptExFunc()) {
 		std::cout << "Fail LoadAccptEx not load" << std::endl;
