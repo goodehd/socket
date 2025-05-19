@@ -1,46 +1,76 @@
 #include "IOCPServer.h"
+#include "Socket.h"
 #include <iostream>
 #include <WinSock2.h>
+#include <stdexcept>
 
-IOCPserver::IOCPserver() : m_listenSocket(INVALID_SOCKET) {}
-IOCPserver::~IOCPserver() {}
+IOCPserver::IOCPserver():m_hIocp(NULL), m_listenSocket() { }
+IOCPserver::~IOCPserver() 
+{
+	CloseHandle(m_hIocp);
+}
 
-bool IOCPserver::SocketInit()
+bool IOCPserver::Init()
+{
+	if (!InitWSA()) 
+		return false;
+	if (!InitListenSocket(5555)) 
+		return false;
+	if (!InitIOCP()) 
+		return false;
+	if (!BindListenSocketToIOCP()) 
+		return false;
+
+	return true;
+}
+
+bool IOCPserver::IocpAdd(Socket& socket, void* userPtr)
+{
+	if(!CreateIoCompletionPort((HANDLE)socket.GetSocket(), m_hIocp, (ULONG_PTR)userPtr, 0))
+		return false;
+	return true;
+}
+
+bool IOCPserver::InitWSA()
 {
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
 		std::cout << "Fail WSA init" << std::endl;
 		return false;
 	}
+}
 
-	m_listenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, NULL, WSA_FLAG_OVERLAPPED);
+bool IOCPserver::InitListenSocket(int port)
+{
+	if (!m_listenSocket.SocketInit(ProtocolType::TCP)) {
+		return false;
+	}
 
-	if (m_listenSocket == INVALID_SOCKET) {
-		std::cout << "WSASocket failed with error: " << WSAGetLastError() << std::endl;
+	if (!m_listenSocket.SocketBind(port)) {
+		return false;
+	}
+
+	if (!m_listenSocket.SocketListen(SOMAXCONN)) {
+		std::cout << "Fail Socket listen" << std::endl;
 		return false;
 	}
 
 	return true;
 }
 
-bool IOCPserver::SocketBind(int port)
+bool IOCPserver::InitIOCP()
 {
-	SOCKADDR_IN serverAddr;
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serverAddr.sin_port = htons(port);
-
-	int result = bind(m_listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
-	if (result == SOCKET_ERROR) {
-		closesocket(m_listenSocket);
-		std::cout << "Fail Socket Bind" << std::endl;
+	m_hIocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	if (m_hIocp == NULL) {
+		std::cout << "Failed to create IOCP: " << GetLastError() << std::endl;
 		return false;
 	}
-
 	return true;
 }
 
-bool IOCPserver::SocketListen(int backLog)
+bool IOCPserver::BindListenSocketToIOCP()
 {
-	return SOCKET_ERROR != listen(m_listenSocket, backLog);
+	return IocpAdd(m_listenSocket, nullptr);
 }
+
+

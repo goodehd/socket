@@ -6,9 +6,20 @@ Socket::~Socket() {
 	CloseSocket();
 }
 
-bool Socket::SocketInit()
+bool Socket::SocketInit(ProtocolType type)
 {
-	m_Socket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, NULL, WSA_FLAG_OVERLAPPED);
+	int sockType = 0;
+	int protocol = 0;
+
+	if (type == ProtocolType::TCP) {
+		sockType = SOCK_STREAM;
+		protocol = IPPROTO_TCP;
+	} else {
+		sockType = SOCK_DGRAM;
+		protocol = IPPROTO_UDP;
+	}
+
+	m_Socket = WSASocket(AF_INET, sockType, protocol, NULL, NULL, WSA_FLAG_OVERLAPPED);
 
 	if (m_Socket == INVALID_SOCKET) {
 		std::cout << "WSASocket failed with error: " << WSAGetLastError() << std::endl;
@@ -35,6 +46,7 @@ bool Socket::SocketBind(int port)
 	return true;
 }
 
+// backLog = 커널이 관리하는 연결 큐의 최대 길이
 bool Socket::SocketListen(int backLog)
 {
 	return SOCKET_ERROR != listen(m_Socket, backLog);
