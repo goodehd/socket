@@ -1,13 +1,13 @@
-#include "Socket.h"
 #include <iostream>
+
+#include "Socket.h"
 
 Socket::Socket() : m_Socket(INVALID_SOCKET), m_LpfnAcceptEx(nullptr), m_OverlappedStruct(nullptr){}
 Socket::~Socket() { 
 	CloseSocket();
 }
 
-bool Socket::SocketInit(ProtocolType type)
-{
+bool Socket::SocketInit(ProtocolType type) {
 	int sockType = 0;
 	int protocol = 0;
 
@@ -29,8 +29,7 @@ bool Socket::SocketInit(ProtocolType type)
 	return true;
 }
 
-bool Socket::SocketBind(int port)
-{
+bool Socket::SocketBind(int port) {
 	SOCKADDR_IN serverAddr;
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -47,44 +46,40 @@ bool Socket::SocketBind(int port)
 }
 
 // backLog = 커널이 관리하는 연결 큐의 최대 길이
-bool Socket::SocketListen(int backLog)
-{
+bool Socket::SocketListen(int backLog) {
 	return SOCKET_ERROR != listen(m_Socket, backLog);
 }
 
-void Socket::CloseSocket()
-{
+void Socket::CloseSocket() {
 	if (m_Socket != INVALID_SOCKET) {
 		closesocket(m_Socket);
 		m_Socket = INVALID_SOCKET;
 	}
 }
 
-bool Socket::ReceiveOverlapped()
-{
-	int ret = WSARecv(
-		m_Socket,
-		&m_OverlappedStruct->WsaBuf,
-		1,
-		NULL,
-		&m_OverlappedStruct->LappedFlag,
-		&m_OverlappedStruct->ReadOverlappedStruct,
-		NULL
-	);
+//bool Socket::ReceiveOverlapped() {
+//	int ret = WSARecv(
+//		m_Socket,
+//		&m_OverlappedStruct->WsaBuf,
+//		1,
+//		NULL,
+//		&m_OverlappedStruct->LappedFlag,
+//		&m_OverlappedStruct->ReadOverlappedStruct,
+//		NULL
+//	);
+//
+//	if (ret == SOCKET_ERROR) {
+//		int err = WSAGetLastError();
+//		if (err != WSA_IO_PENDING) {
+//			std::cout << "WSARecv failed: " << err << std::endl;
+//			return false;
+//		}
+//	}
+//
+//	return true;
+//}
 
-	if (ret == SOCKET_ERROR) {
-		int err = WSAGetLastError();
-		if (err != WSA_IO_PENDING) {
-			std::cout << "WSARecv failed: " << err << std::endl;
-			return false;
-		}
-	}
-
-	return true;
-}
-
-bool Socket::LoadAcceptExFunc()
-{
+bool Socket::LoadAcceptExFunc() {
 	GUID guidAcceptEx = WSAID_ACCEPTEX;
 	DWORD bytes = 0;
 
@@ -100,8 +95,7 @@ bool Socket::LoadAcceptExFunc()
 		NULL) != SOCKET_ERROR;
 }
 
-bool Socket::AcceptExSocket(Socket* clientSocket, OVERLAPPED* overlapped, char* buffer)
-{
+bool Socket::AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer) {
 	if (!LoadAcceptExFunc()) {
 		std::cout << "Fail LoadAccptEx not load" << std::endl;
 		return false;
@@ -111,7 +105,7 @@ bool Socket::AcceptExSocket(Socket* clientSocket, OVERLAPPED* overlapped, char* 
 
 	BOOL result = m_LpfnAcceptEx(
 		m_Socket,
-		clientSocket->GetSocket(),
+		clientSocket.GetSocket(),
 		buffer,
 		0,
 		sizeof(SOCKADDR_IN) + 16,
@@ -131,12 +125,13 @@ bool Socket::AcceptExSocket(Socket* clientSocket, OVERLAPPED* overlapped, char* 
 	return true;
 }
 
-bool Socket::SetAcceptContext(SOCKET listenSocket) {
+bool Socket::SetAcceptContext(Socket& listenSocket) {
+	SOCKET s = listenSocket.GetSocket();
 	if (setsockopt(
 		m_Socket,
 		SOL_SOCKET,
 		SO_UPDATE_ACCEPT_CONTEXT,
-		(const char*)&listenSocket,
+		reinterpret_cast<const char*>(&s),
 		sizeof(SOCKET)) == SOCKET_ERROR) 
 	{
 		std::cout << "setsockopt failed with error: " << WSAGetLastError() << std::endl;

@@ -4,14 +4,20 @@
 #include <winsock2.h>
 #include <mswsock.h>
 #include <windows.h>
+
 #include "Socket.h"
+#include "Structs.h"
 
 #pragma comment(lib, "ws2_32.lib")
 
-struct AcceptContext {
-	OVERLAPPED overlapped;
+struct AcceptContext : IOContext {
 	char buffer[2 * (sizeof(SOCKADDR_IN) + 16)];
 	Socket clientSocket;
+
+	AcceptContext() {
+		OperationType = EOperationType::ACCEPT;
+		ZeroMemory(buffer, sizeof(buffer));
+	}
 };
 
 class IOCPserver{
@@ -24,6 +30,8 @@ private:
 	HANDLE m_hIocp;
 	Socket m_listenSocket;
 	std::unordered_map<Socket*, AcceptContext> m_clientMap;
+
+	bool m_isRuning;
 	
 public:
 	bool Init();
@@ -38,4 +46,5 @@ private :
 	bool BindListenSocketToIOCP();
 	bool StartAccept();
 	void HandleAccept(AcceptContext* overlapped);
+	void WorkerThreadProc();
 };
