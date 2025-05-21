@@ -3,39 +3,40 @@
 #include <stdexcept>
 #include <thread>
 
+#include "ClientSession.h"
 #include "IOCPServer.h"
-#include "Socket.h"
 
-IOCPserver::IOCPserver():m_hIocp(NULL), m_listenSocket(), m_isRuning(false) { }
+IOCPserver::IOCPserver():m_hIocp(NULL), m_listenSocket(), m_isRuning(false), m_threadCount(0) { }
 IOCPserver::~IOCPserver()  {
 	CloseHandle(m_hIocp);
 }
 
-bool IOCPserver::Init() {
+bool IOCPserver::Init(int workerThreadCount, int port) {
 	if (!InitWSA()) 
 		return false;
-	if (!InitListenSocket(5555)) 
+	if (!InitListenSocket(port))
 		return false;
-	if (!InitIOCP()) 
+	if (!InitIOCP(workerThreadCount))
 		return false;
 	if (!BindListenSocketToIOCP()) 
 		return false;
 
+	m_threadCount = workerThreadCount;
 	return true;
 }
 
-bool IOCPserver::Run(int workerThreadCount) {
+bool IOCPserver::Run() {
 	if (m_isRuning)
 		return false;
 
-	if (workerThreadCount <= 0) {
+	if (m_threadCount <= 0) {
 		SYSTEM_INFO sysInfo;
 		GetSystemInfo(&sysInfo);
 
-		workerThreadCount = sysInfo.dwNumberOfProcessors * 2;
+		m_threadCount = sysInfo.dwNumberOfProcessors * 2;
 	}
 
-	for (int i = 0; i < workerThreadCount; ++i) {
+	for (int i = 0; i < m_threadCount; ++i) {
 		std::thread([this]() {
 			this->WorkerThreadProc();
 			}).detach();
@@ -47,12 +48,12 @@ bool IOCPserver::Run(int workerThreadCount) {
 	}
 
 	m_isRuning = true;
-	std::cout << "IOCP Server is running." << std::endl;
-	return false;
+	std::cout << "Server is running." << std::endl;
+	return true;
 }
 
-bool IOCPserver::IocpAdd(Socket& socket, void* userPtr) {
-	if(!CreateIoCompletionPort((HANDLE)socket.GetSocket(), m_hIocp, (ULONG_PTR)userPtr, 0))
+bool IOCPserver::IocpAdd(SOCKET socket, void* userPtr) {
+	if(!CreateIoCompletionPort((HANDLE)socket, m_hIocp, reinterpret_cast<ULONG_PTR>(userPtr), 0))
 		return false;
 	return true;
 }
@@ -83,8 +84,8 @@ bool IOCPserver::InitListenSocket(int port) {
 	return true;
 }
 
-bool IOCPserver::InitIOCP() {
-	m_hIocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+bool IOCPserver::InitIOCP(int workerThreadCount) {
+	m_hIocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, workerThreadCount);
 	if (m_hIocp == NULL) {
 		std::cout << "Failed to create IOCP: " << GetLastError() << std::endl;
 		return false;
@@ -93,7 +94,7 @@ bool IOCPserver::InitIOCP() {
 }
 
 bool IOCPserver::BindListenSocketToIOCP() {
-	return IocpAdd(m_listenSocket, nullptr);
+	return IocpAdd(m_listenSocket.GetSocket(), nullptr);
 }
 
 bool IOCPserver::StartAccept() {
@@ -113,8 +114,28 @@ bool IOCPserver::StartAccept() {
 }
 
 void IOCPserver::HandleAccept(AcceptContext* overlapped) {
-	overlapped->clientSocket.SetAcceptContext(m_listenSocket);
+	if (!overlapped->clientSocket.SetAcceptContext(m_listenSocket)) {
+		std::cout << "SetAcceptContext failed" << std::endl;
+		delete overlapped;
+		return;
+	}
 
+	StartAccept();
+
+	//std::pair<const sockaddr*, const sockaddr*> info = NetworkUtil::ExtractAcceptAddrs(overlapped->buffer);
+	//std::cout << "신규 클라이언트: " << NetworkUtil::AddrToString(info.second) << std::endl;
+
+	std::shared_ptr<ClientSession> session = std::make_shared<ClientSession>(std::move(overlapped->clientSocket));
+
+	if (!IocpAdd(session.get()->GetSocket(), session.get())) {
+		std::cout << "Failed to associate client socket with IOCP" << std::endl;
+		delete overlapped;
+		return;
+	}
+
+	m_clientSessions[session->GetSocket()] = session;
+
+	delete overlapped;
 }
 
 void IOCPserver::WorkerThreadProc() {

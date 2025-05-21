@@ -1,12 +1,15 @@
 #include "IOCPServer.h"
-#include "Socket.h"
 
 int main() {
 	IOCPserver server;
 	
-	if (!server.Init()) {
+	if (!server.Init(8, 5555)) {
 		return 0;
 	}
 
+	server.Run();
 
+	while (true) {
+		Sleep(100);
+	}
 }

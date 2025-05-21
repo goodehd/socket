@@ -2,9 +2,32 @@
 
 #include "Socket.h"
 
-Socket::Socket() : m_Socket(INVALID_SOCKET), m_LpfnAcceptEx(nullptr), m_OverlappedStruct(nullptr){}
+Socket::Socket() : m_Socket(INVALID_SOCKET), m_LpfnAcceptEx(nullptr){}
 Socket::~Socket() { 
 	CloseSocket();
+}
+
+Socket::Socket(Socket&& other) noexcept
+	: m_Socket(other.m_Socket),
+	m_LpfnAcceptEx(other.m_LpfnAcceptEx) {
+	other.m_Socket = INVALID_SOCKET;
+	other.m_LpfnAcceptEx = nullptr;
+}
+
+
+Socket& Socket::operator=(Socket&& other) noexcept {
+	if (this != &other) {
+		if (m_Socket != INVALID_SOCKET) {
+			closesocket(m_Socket);
+
+			m_Socket = other.m_Socket;
+			m_LpfnAcceptEx = other.m_LpfnAcceptEx;
+		}
+
+		other.m_Socket = INVALID_SOCKET;
+		other.m_LpfnAcceptEx = nullptr;
+	}
+	return *this;
 }
 
 bool Socket::SocketInit(ProtocolType type) {
@@ -30,18 +53,18 @@ bool Socket::SocketInit(ProtocolType type) {
 }
 
 bool Socket::SocketBind(int port) {
-	SOCKADDR_IN serverAddr;
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serverAddr.sin_port = htons(port);
+	sockaddr_in serverAddr;
+	if (!InitSockAddr(serverAddr, nullptr, port))
+		return false;
 
-	int result = bind(m_Socket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
-	if (result == SOCKET_ERROR) {
+	if (bind(m_Socket,
+		reinterpret_cast<SOCKADDR*>(&serverAddr),
+		sizeof(serverAddr)) == SOCKET_ERROR)
+	{
 		CloseSocket();
-		std::cout << "Fail Socket Bind" << std::endl;
+		std::cout << "SocketBind failed: " << WSAGetLastError() << std::endl;
 		return false;
 	}
-
 	return true;
 }
 
@@ -57,27 +80,21 @@ void Socket::CloseSocket() {
 	}
 }
 
-//bool Socket::ReceiveOverlapped() {
-//	int ret = WSARecv(
-//		m_Socket,
-//		&m_OverlappedStruct->WsaBuf,
-//		1,
-//		NULL,
-//		&m_OverlappedStruct->LappedFlag,
-//		&m_OverlappedStruct->ReadOverlappedStruct,
-//		NULL
-//	);
-//
-//	if (ret == SOCKET_ERROR) {
-//		int err = WSAGetLastError();
-//		if (err != WSA_IO_PENDING) {
-//			std::cout << "WSARecv failed: " << err << std::endl;
-//			return false;
-//		}
-//	}
-//
-//	return true;
-//}
+
+bool Socket::Connect(const char* ip, int port) {
+	sockaddr_in servAddr;
+	if (!InitSockAddr(servAddr, ip, port))
+		return false;
+
+	if (connect(m_Socket,
+		reinterpret_cast<SOCKADDR*>(&servAddr),
+		sizeof(servAddr)) == SOCKET_ERROR)
+	{
+		std::cout << "Connect failed: " << WSAGetLastError() << std::endl;
+		return false;
+	}
+	return true;
+}
 
 bool Socket::LoadAcceptExFunc() {
 	GUID guidAcceptEx = WSAID_ACCEPTEX;
@@ -138,6 +155,23 @@ bool Socket::SetAcceptContext(Socket& listenSocket) {
 		return false;
 	}
 
+	return true;
+}
+
+bool Socket::InitSockAddr(sockaddr_in& outAddr, const char* ip, int port) {
+	ZeroMemory(&outAddr, sizeof(outAddr));
+	outAddr.sin_family = AF_INET;
+	outAddr.sin_port = htons(port);
+
+	if (ip) {
+		int rv = inet_pton(AF_INET, ip, &outAddr.sin_addr);
+		if (rv != 1) {
+			std::cout << "Invalid IP format: " << ip << std::endl;
+			return false;
+		}
+	} else {
+		outAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	}
 	return true;
 }
 

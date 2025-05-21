@@ -5,6 +5,7 @@
 #include <mswsock.h>
 #include <windows.h>
 #include <memory>
+#include <ws2tcpip.h>
 
 #include "Structs.h"
 
@@ -20,26 +21,34 @@ class Socket {
 private:
 	SOCKET m_Socket;
 	LPFN_ACCEPTEX m_LpfnAcceptEx;
-	std::unique_ptr<OverlappedContext> m_OverlappedStruct;
 
 public :
 	Socket();
 	~Socket();
+	Socket(Socket&& other) noexcept;
+	Socket& operator=(Socket&& other) noexcept;
+	Socket(const Socket&) = delete;
+	Socket& operator=(const Socket&) = delete;
 
 public :
 	SOCKET GetSocket() const {
 		return m_Socket;
 	}
 
+	void SetSocket(SOCKET socket) {
+		m_Socket = socket;
+	}
+
 public:
 	bool SocketInit(ProtocolType type);
 	bool SocketBind(int port);
 	bool SocketListen(int backLog);
+	bool Connect(const char* ip, int port);
 	bool AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer);
 	bool SetAcceptContext(Socket& listenSocket);
-	bool ReceiveOverlapped();
 	void CloseSocket();
 
 private :
 	bool LoadAcceptExFunc();
+	bool InitSockAddr(sockaddr_in& outAddr, const char* ip, int port);
 };
