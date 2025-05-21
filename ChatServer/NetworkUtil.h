@@ -10,6 +10,7 @@
 
 class NetworkUtil {
 public:
-    static std::pair<const sockaddr*, const sockaddr*> ExtractAcceptAddrs(const char* buffer);
-    static std::string AddrToString(const sockaddr* sa);
+    static bool GetPeerSockAddr(SOCKET sock, sockaddr_storage& outStor);
+    static std::string GetPeerAddrString(SOCKET sock);
+    static std::string AddrToString(sockaddr* sa);
 };

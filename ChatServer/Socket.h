@@ -20,7 +20,6 @@ class Socket {
 
 private:
 	SOCKET m_Socket;
-	LPFN_ACCEPTEX m_LpfnAcceptEx;
 
 public :
 	Socket();
@@ -44,11 +43,11 @@ public:
 	bool SocketBind(int port);
 	bool SocketListen(int backLog);
 	bool Connect(const char* ip, int port);
+
 	bool AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer);
 	bool SetAcceptContext(Socket& listenSocket);
 	void CloseSocket();
 
 private :
-	bool LoadAcceptExFunc();
 	bool InitSockAddr(sockaddr_in& outAddr, const char* ip, int port);
 };

@@ -75,6 +75,8 @@
 //
 
 #include <iostream>
+#include <string>
+#include <thread>
 #include <WinSock2.h>
 #include "..\ChatServer\Socket.h"
 
@@ -82,37 +84,66 @@
 
 int main()
 {
+    std::string name;
+    std::cout << "Enter your Name: ";
+    std::cin >> name;
+    std::cin.ignore();
+    name += ": ";
+
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "WSAStartup failed: " << WSAGetLastError() << std::endl;
+        std::cerr << "WSAStartup failed: " << WSAGetLastError() << "\n";
         return 1;
     }
 
     Socket client;
-    if (!client.SocketInit(ProtocolType::TCP)) {
-        std::cerr << "SocketInit failed" << std::endl;
+    if (!client.SocketInit(ProtocolType::TCP) ||
+        !client.Connect("127.0.0.1", 5555))
+    {
+        std::cerr << "Unable to connect to server\n";
         WSACleanup();
         return 1;
     }
+    std::cout << "서버에 연결 성공: 127.0.0.1:5555\n";
 
-    const char* serverIp = "127.0.0.1";
-    const int   serverPort = 5555;
-    if (!client.Connect(serverIp, serverPort)) {
-        std::cerr << "Unable to connect to server "
-            << serverIp << ":" << serverPort << std::endl;
-        client.CloseSocket();
-        WSACleanup();
-        return 1;
-    }
+    std::thread recvThread([&client]() {
+        char buf[1024];
+        while (true) {
+            int len = recv(client.GetSocket(), buf, sizeof(buf) - 1, 0);
+            if (len > 0) {
+                buf[len] = '\0';
+                std::cout << buf << std::endl;
+            } else if (len == 0) {
+                std::cout << "서버가 연결을 종료했습니다.\n";
+                break;
+            } else {
+                std::cerr << "recv failed: " << WSAGetLastError() << "\n";
+                break;
+            }
+        }
+        });
 
-    std::cout << "서버에 연결 성공: "
-        << serverIp << ":" << serverPort << std::endl;
+    std::string line;
+    while (std::getline(std::cin, line)) {
+        if (line == "exit" || line == "quit")
+            break;
 
-    while (true) {
-        Sleep(1000);
+        std::string sendMsg = name + line;
+        int sent = ::send(
+            client.GetSocket(),
+            sendMsg.c_str(),
+            static_cast<int>(sendMsg.size()),
+            0
+        );
+        if (sent == SOCKET_ERROR) {
+            std::cerr << "send failed: " << WSAGetLastError() << "\n";
+            break;
+        }
     }
 
     client.CloseSocket();
+    if (recvThread.joinable())
+        recvThread.join();
     WSACleanup();
     return 0;
 }

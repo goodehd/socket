@@ -1,27 +1,23 @@
 #include <iostream>
 #include <WinSock2.h>
 #include <stdexcept>
-#include <thread>
 
 #include "ClientSession.h"
 #include "IOCPServer.h"
 
 IOCPserver::IOCPserver():m_hIocp(NULL), m_listenSocket(), m_isRuning(false), m_threadCount(0) { }
-IOCPserver::~IOCPserver()  {
-	CloseHandle(m_hIocp);
-}
+IOCPserver::~IOCPserver()  {}
 
 bool IOCPserver::Init(int workerThreadCount, int port) {
 	if (!InitWSA()) 
 		return false;
-	if (!InitListenSocket(port))
+	if (!InitListenSocket(port)) // 옮김
 		return false;
 	if (!InitIOCP(workerThreadCount))
 		return false;
-	if (!BindListenSocketToIOCP()) 
+	if (!BindListenSocketToIOCP()) //옮김
 		return false;
 
-	m_threadCount = workerThreadCount;
 	return true;
 }
 
@@ -29,27 +25,45 @@ bool IOCPserver::Run() {
 	if (m_isRuning)
 		return false;
 
-	if (m_threadCount <= 0) {
-		SYSTEM_INFO sysInfo;
-		GetSystemInfo(&sysInfo);
-
-		m_threadCount = sysInfo.dwNumberOfProcessors * 2;
-	}
-
 	for (int i = 0; i < m_threadCount; ++i) {
-		std::thread([this]() {
-			this->WorkerThreadProc();
-			}).detach();
+		m_workerThreads.emplace_back(
+			[this]() { this->WorkerThreadProc(); }
+		);
 	}
 
 	if (!StartAccept()) {
-		std::cerr << "StartAccept failed" << std::endl;
+		std::cout << "StartAccept failed" << std::endl;
 		return false;
 	}
 
 	m_isRuning = true;
 	std::cout << "Server is running." << std::endl;
 	return true;
+}
+
+void IOCPserver::Stop() {
+	if (!m_isRuning)
+		return;
+
+	m_isRuning = false;
+
+	m_listenSocket.CloseSocket();
+
+	for (size_t i = 0; i < m_workerThreads.size(); ++i) {
+		PostQueuedCompletionStatus(m_hIocp,
+			0,          
+			0,          
+			nullptr);   
+	}
+
+	for (auto& t : m_workerThreads) {
+		if (t.joinable())
+			t.join();
+	}
+	m_workerThreads.clear();
+
+	CloseHandle(m_hIocp);
+	m_hIocp = nullptr;
 }
 
 bool IOCPserver::IocpAdd(SOCKET socket, void* userPtr) {
@@ -85,6 +99,14 @@ bool IOCPserver::InitListenSocket(int port) {
 }
 
 bool IOCPserver::InitIOCP(int workerThreadCount) {
+	if (workerThreadCount <= 0) {
+		SYSTEM_INFO sysInfo;
+		GetSystemInfo(&sysInfo);
+		m_threadCount = sysInfo.dwNumberOfProcessors * 2;
+	} else {
+		m_threadCount = workerThreadCount;
+	}
+
 	m_hIocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, workerThreadCount);
 	if (m_hIocp == NULL) {
 		std::cout << "Failed to create IOCP: " << GetLastError() << std::endl;
@@ -122,10 +144,11 @@ void IOCPserver::HandleAccept(AcceptContext* overlapped) {
 
 	StartAccept();
 
-	//std::pair<const sockaddr*, const sockaddr*> info = NetworkUtil::ExtractAcceptAddrs(overlapped->buffer);
-	//std::cout << "신규 클라이언트: " << NetworkUtil::AddrToString(info.second) << std::endl;
+	std::string clientAddr = NetworkUtil::GetPeerAddrString(overlapped->clientSocket.GetSocket());
+	std::cout << "신규 클라이언트: " << clientAddr << std::endl;
 
 	std::shared_ptr<ClientSession> session = std::make_shared<ClientSession>(std::move(overlapped->clientSocket));
+	session->SetAddress(clientAddr);
 
 	if (!IocpAdd(session.get()->GetSocket(), session.get())) {
 		std::cout << "Failed to associate client socket with IOCP" << std::endl;
@@ -133,10 +156,58 @@ void IOCPserver::HandleAccept(AcceptContext* overlapped) {
 		return;
 	}
 
-	m_clientSessions[session->GetSocket()] = session;
+	{
+		std::lock_guard<std::mutex> lock(m_sessionsMutex);
+		m_clientSessions[session->GetSocket()] = session;
+	}
+
+	if (!session->PostRecv()) {
+		std::cout << "Initial PostRecv failed for: " << clientAddr << std::endl;
+		session->Disconnect();
+		{
+			std::lock_guard<std::mutex> lock(m_sessionsMutex);
+			m_clientSessions.erase(session->GetSocket());
+		}
+		delete overlapped;
+		return;
+	}
 
 	delete overlapped;
 }
+
+void IOCPserver::HandleRecv(OverlappedContext* recvCtx, ClientSession* session, DWORD bytesTransferred) {
+	if (bytesTransferred == 0) {
+		std::cout << "session Disconnect !! : " << session->GetAddress() << std::endl;
+
+		SOCKET s = session->GetSocket();
+		session->Disconnect();
+		m_clientSessions.erase(s);
+		return;
+	}
+
+	const char* data = recvCtx->ReceiveBuffer;
+	int         len = static_cast<int>(bytesTransferred);
+
+	Broadcast(data, len);
+
+	session->PostRecv();
+}
+
+void IOCPserver::Broadcast(const char* data, int len) {
+	std::vector<std::shared_ptr<ClientSession>> peers;
+	{
+		std::lock_guard<std::mutex> lock(m_sessionsMutex);
+		peers.reserve(m_clientSessions.size());
+		for (auto& kv : m_clientSessions) {
+			peers.push_back(kv.second);
+		}
+	}
+
+	for (auto& peer : peers) {
+		peer->PostSend(data, len);
+	}
+}
+
 
 void IOCPserver::WorkerThreadProc() {
 	while (m_isRuning) {
@@ -160,13 +231,16 @@ void IOCPserver::WorkerThreadProc() {
 			continue;
 		}
 
-		IOContext* context = reinterpret_cast<IOContext*>(overlapped);
-		switch (context->OperationType)
+		ClientSession* session = reinterpret_cast<ClientSession*>(completionKey);
+		IOContext* ctxBase = reinterpret_cast<IOContext*>(overlapped);
+
+		switch (ctxBase->OperationType)
 		{
 		case EOperationType::ACCEPT:
-			HandleAccept(static_cast<AcceptContext*>(context));
+			HandleAccept(static_cast<AcceptContext*>(ctxBase));
 			break;
 		case EOperationType::RECV:
+			HandleRecv(static_cast<OverlappedContext*>(ctxBase), session, bytesTransferred);
 			break;
 		case EOperationType::SEND:
 			break;

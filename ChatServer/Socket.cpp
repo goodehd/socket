@@ -2,16 +2,14 @@
 
 #include "Socket.h"
 
-Socket::Socket() : m_Socket(INVALID_SOCKET), m_LpfnAcceptEx(nullptr){}
+Socket::Socket() : m_Socket(INVALID_SOCKET) {}
 Socket::~Socket() { 
 	CloseSocket();
 }
 
 Socket::Socket(Socket&& other) noexcept
-	: m_Socket(other.m_Socket),
-	m_LpfnAcceptEx(other.m_LpfnAcceptEx) {
+	: m_Socket(other.m_Socket) {
 	other.m_Socket = INVALID_SOCKET;
-	other.m_LpfnAcceptEx = nullptr;
 }
 
 
@@ -21,11 +19,9 @@ Socket& Socket::operator=(Socket&& other) noexcept {
 			closesocket(m_Socket);
 
 			m_Socket = other.m_Socket;
-			m_LpfnAcceptEx = other.m_LpfnAcceptEx;
 		}
 
 		other.m_Socket = INVALID_SOCKET;
-		other.m_LpfnAcceptEx = nullptr;
 	}
 	return *this;
 }
@@ -80,7 +76,6 @@ void Socket::CloseSocket() {
 	}
 }
 
-
 bool Socket::Connect(const char* ip, int port) {
 	sockaddr_in servAddr;
 	if (!InitSockAddr(servAddr, ip, port))
@@ -96,22 +91,6 @@ bool Socket::Connect(const char* ip, int port) {
 	return true;
 }
 
-bool Socket::LoadAcceptExFunc() {
-	GUID guidAcceptEx = WSAID_ACCEPTEX;
-	DWORD bytes = 0;
-
-	 return WSAIoctl(
-		m_Socket,
-		SIO_GET_EXTENSION_FUNCTION_POINTER,
-		&guidAcceptEx,
-		sizeof(guidAcceptEx),
-		&m_LpfnAcceptEx,
-		sizeof(m_LpfnAcceptEx),
-		&bytes,
-		NULL,
-		NULL) != SOCKET_ERROR;
-}
-
 bool Socket::AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer) {
 	if (!LoadAcceptExFunc()) {
 		std::cout << "Fail LoadAccptEx not load" << std::endl;
@@ -125,8 +104,8 @@ bool Socket::AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* 
 		clientSocket.GetSocket(),
 		buffer,
 		0,
-		sizeof(SOCKADDR_IN) + 16,
-		sizeof(SOCKADDR_IN) + 16,
+		sizeof(SOCKADDR_STORAGE) + 16,
+		sizeof(SOCKADDR_STORAGE) + 16,
 		&bytesReceived,
 		overlapped
 	);

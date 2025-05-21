@@ -130,6 +130,7 @@
   <ItemGroup>
     <ClCompile Include="ChatServer.cpp" />
     <ClCompile Include="ClientSession.cpp" />
+    <ClCompile Include="IOCPListener.cpp" />
     <ClCompile Include="IOCPServer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NetworkUtil.cpp" />
@@ -137,6 +138,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ClientSession.h" />
+    <ClInclude Include="IOCPListener.h" />
     <ClInclude Include="IOCPServer.h" />
     <ClInclude Include="NetworkUtil.h" />
     <ClInclude Include="Socket.h" />
