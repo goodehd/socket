@@ -3,28 +3,29 @@
 #include <windows.h>
 #include <mswsock.h>
 #include <functional>
+#include <memory>
 
 #include "Socket.h"
-#include "IOCPServer.h"
+#include "Structs.h"
 
-using AcceptHandler = std::function<void(AcceptContext*)>;
+class IOCPserver;
+class ClientSession;
 
 class IOCPListener {
 private:
-    IOCPserver&          m_owner;
-    Socket               m_listenSocket;
-    LPFN_ACCEPTEX        m_lpfnAcceptEx;
-    AcceptHandler        m_handler;
-    unsigned short       m_port;
+    IOCPserver* m_owner;
+    Socket m_listenSocket;
+    LPFN_ACCEPTEX m_lpfnAcceptEx;
 
 public:
-    IOCPListener(unsigned short port, IOCPserver owner, AcceptHandler handler);
-    bool InitListener();
-    void InitAccept(int initialCount);
-    void OnAccept(AcceptContext* ctx);
+    IOCPListener(IOCPserver* owner);
+    bool InitListener(unsigned short port);
+    bool StartAccept();
+    void CancelPendingAccept();
+    std::shared_ptr<ClientSession> HandleAccept(AcceptContext* overlapped);
 
 private:
-    void PostAccept();
     bool LoadAcceptExFunc();
-    bool AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer)
+    bool AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer, bool& outImmediate);
+    bool SetAcceptContext(Socket& clientSock);
 };

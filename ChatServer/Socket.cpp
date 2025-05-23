@@ -91,52 +91,6 @@ bool Socket::Connect(const char* ip, int port) {
 	return true;
 }
 
-bool Socket::AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer) {
-	if (!LoadAcceptExFunc()) {
-		std::cout << "Fail LoadAccptEx not load" << std::endl;
-		return false;
-	}
-
-	DWORD bytesReceived = 0;
-
-	BOOL result = m_LpfnAcceptEx(
-		m_Socket,
-		clientSocket.GetSocket(),
-		buffer,
-		0,
-		sizeof(SOCKADDR_STORAGE) + 16,
-		sizeof(SOCKADDR_STORAGE) + 16,
-		&bytesReceived,
-		overlapped
-	);
-
-	if (result == FALSE) {
-		int err = WSAGetLastError();
-		if (err != ERROR_IO_PENDING) {
-			std::cout << "AcceptEx failed with error: " << err << std::endl;
-			return false;
-		}
-	}
-
-	return true;
-}
-
-bool Socket::SetAcceptContext(Socket& listenSocket) {
-	SOCKET s = listenSocket.GetSocket();
-	if (setsockopt(
-		m_Socket,
-		SOL_SOCKET,
-		SO_UPDATE_ACCEPT_CONTEXT,
-		reinterpret_cast<const char*>(&s),
-		sizeof(SOCKET)) == SOCKET_ERROR) 
-	{
-		std::cout << "setsockopt failed with error: " << WSAGetLastError() << std::endl;
-		return false;
-	}
-
-	return true;
-}
-
 bool Socket::InitSockAddr(sockaddr_in& outAddr, const char* ip, int port) {
 	ZeroMemory(&outAddr, sizeof(outAddr));
 	outAddr.sin_family = AF_INET;
@@ -154,3 +108,26 @@ bool Socket::InitSockAddr(sockaddr_in& outAddr, const char* ip, int port) {
 	return true;
 }
 
+bool Socket::Send(const std::string& data) {
+	const char* ptr = data.data();
+	int remaining = static_cast<int>(data.size());
+	while (remaining > 0) {
+		int sent = ::send(m_Socket, ptr, remaining, 0);
+		if (sent == SOCKET_ERROR) {
+			std::cout << "Socket::Send failed: " << WSAGetLastError() << "\n";
+			return false;
+		}
+		ptr += sent;
+		remaining -= sent;
+	}
+	return true;
+}
+
+int Socket::Recv(char* buffer, int bufSize) {
+	int len = ::recv(m_Socket, buffer, bufSize, 0);
+	if (len == SOCKET_ERROR) {
+		std::cout << "Socket::Recv failed: " << WSAGetLastError() << "\n";
+		return -1;
+	}
+	return len;
+}

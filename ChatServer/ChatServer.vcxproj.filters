@@ -41,23 +41,23 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ClientSession.h">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
     <ClInclude Include="IOCPListener.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Structs.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Socket.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="NetworkUtil.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일</Filter>
     </ClInclude>
     <ClInclude Include="IOCPServer.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>소스 파일</Filter>
     </ClInclude>
-    <ClInclude Include="ClientSession.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="NetworkUtil.h">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Socket.h">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="Structs.h">
+      <Filter>소스 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -12,20 +12,11 @@
 #include "Socket.h"
 #include "Structs.h"
 #include "NetworkUtil.h"
-
-class ClientSession;
+#include "ClientSession.h"
 
 #pragma comment(lib, "ws2_32.lib")
 
-struct AcceptContext : IOContext {
-	char buffer[2 * (sizeof(SOCKADDR_STORAGE) + 16)];
-	Socket clientSocket;
-
-	AcceptContext() {
-		OperationType = EOperationType::ACCEPT;
-		ZeroMemory(buffer, sizeof(buffer));
-	}
-};
+class IOCPListener;
 
 class IOCPserver{
 
@@ -35,16 +26,24 @@ public:
 
 private:
 	HANDLE m_hIocp;
-	Socket m_listenSocket;
+	std::unique_ptr<IOCPListener> m_listener;
 	std::unordered_map<SOCKET, std::shared_ptr<ClientSession>> m_clientSessions;
 	std::vector<std::thread> m_workerThreads;
 	std::mutex m_sessionsMutex;
 
-	bool m_isRuning;
+	bool m_isRunning;
 	int m_threadCount;
 	
 public:
-	bool Init(int workerThreadCount, int port);
+	void AddClientSession(std::shared_ptr<ClientSession> session) {
+		{
+			std::lock_guard<std::mutex> lock(m_sessionsMutex);
+			m_clientSessions[session.get()->GetSocket()] = session;
+		}
+	}
+
+public:
+	bool Init(int workerThreadCount, unsigned short port);
 	bool Run();
 	void Stop();
 	bool IocpAdd(SOCKET socket, void* userPtr);
@@ -52,13 +51,8 @@ public:
 
 private :
 	bool InitWSA();
-	bool InitListenSocket(int port);
 	bool InitIOCP(int workerThreadCount);
-	bool BindListenSocketToIOCP();
-	bool StartAccept();
 	void WorkerThreadProc();
 
-	void HandleAccept(AcceptContext* overlapped);
 	void HandleRecv(OverlappedContext* overlapped, ClientSession* session, DWORD bytesTransferred);
-
 };

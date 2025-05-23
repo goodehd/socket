@@ -7,8 +7,6 @@
 #include <memory>
 #include <ws2tcpip.h>
 
-#include "Structs.h"
-
 #pragma comment(lib, "ws2_32.lib")
 
 enum class ProtocolType {
@@ -43,10 +41,10 @@ public:
 	bool SocketBind(int port);
 	bool SocketListen(int backLog);
 	bool Connect(const char* ip, int port);
-
-	bool AcceptExSocket(Socket& clientSocket, OVERLAPPED* overlapped, char* buffer);
-	bool SetAcceptContext(Socket& listenSocket);
 	void CloseSocket();
+
+	bool Send(const std::string& data);
+	int  Recv(char* buffer, int bufSize);
 
 private :
 	bool InitSockAddr(sockaddr_in& outAddr, const char* ip, int port);

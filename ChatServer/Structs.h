@@ -35,3 +35,12 @@ struct OverlappedContext : IOContext {
 	}
 };
 
+struct AcceptContext : IOContext {
+	char buffer[2 * (sizeof(SOCKADDR_STORAGE) + 16)];
+	Socket clientSocket;
+
+	AcceptContext() {
+		OperationType = EOperationType::ACCEPT;
+		ZeroMemory(buffer, sizeof(buffer));
+	}
+};
